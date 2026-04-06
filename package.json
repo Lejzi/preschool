@@ -1,0 +1,18 @@
+{
+  "name": "przedszkole",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "dev:web": "npm run dev --prefix apps/web",
+    "dev:mobile": "npm run start --prefix apps/mobile",
+    "build:web": "npm run build --prefix apps/web",
+    "build:functions": "npm run build --prefix functions",
+    "emulate": "firebase emulators:start",
+    "deploy:functions": "firebase deploy --only functions",
+    "deploy:hosting": "firebase deploy --only hosting",
+    "deploy:rules": "firebase deploy --only firestore:rules,storage:rules"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

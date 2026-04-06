@@ -1,0 +1,10 @@
+{
+  "projects": {
+    "default": "przedszkole-4f595",
+    "przedszkole": "przedszkole-4f595"
+  },
+  "targets": {
+    "staging": "przedszkole-staging"
+  },
+  "etags": {}
+}

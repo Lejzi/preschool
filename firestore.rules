@@ -1,0 +1,188 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function userDocPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function claims() {
+      return request.auth.token;
+    }
+
+    function hasUserDoc() {
+      return isSignedIn() && exists(userDocPath());
+    }
+
+    function userRole() {
+      return hasUserDoc() ? get(userDocPath()).data.role : null;
+    }
+
+    function userPreschoolId() {
+      return hasUserDoc() ? get(userDocPath()).data.preschoolId : null;
+    }
+
+    function currentPreschoolId() {
+      return isSignedIn()
+        ? (claims().preschoolId != null ? claims().preschoolId : userPreschoolId())
+        : null;
+    }
+
+    function requestPreschoolId() {
+      return request.resource != null ? request.resource.data.preschoolId : null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn()
+        && (claims().role == 'superadmin' || userRole() == 'superadmin');
+    }
+
+    function isAdminOf(preschoolId) {
+      return isSignedIn()
+        && (claims().role == 'admin' || userRole() == 'admin')
+        && currentPreschoolId() == preschoolId;
+    }
+
+    function isTeacherOf(preschoolId) {
+      return isSignedIn()
+        && (claims().role == 'teacher' || userRole() == 'teacher')
+        && currentPreschoolId() == preschoolId;
+    }
+
+    function isParentOf(preschoolId) {
+      return isSignedIn()
+        && (claims().role == 'parent' || userRole() == 'parent')
+        && currentPreschoolId() == preschoolId;
+    }
+
+    function isStaffOf(preschoolId) {
+      return isSuperAdmin() || isAdminOf(preschoolId) || isTeacherOf(preschoolId);
+    }
+
+    function belongsToPreschool(preschoolId) {
+      return isStaffOf(preschoolId) || isParentOf(preschoolId);
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId
+        || isSuperAdmin()
+        || (
+          resource.data.preschoolId != null
+          && resource.data.preschoolId == currentPreschoolId()
+        )
+      );
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (
+        (
+          request.auth.uid == userId
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.preschoolId == resource.data.preschoolId
+          && request.resource.data.linkedKidIds == resource.data.linkedKidIds
+        )
+        || isSuperAdmin()
+        || isAdminOf(resource.data.preschoolId)
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    match /preschools/{preschoolId} {
+      allow read: if isSuperAdmin() || belongsToPreschool(preschoolId);
+      allow create: if isSuperAdmin();
+      allow update, delete: if isSuperAdmin() || isAdminOf(preschoolId);
+    }
+
+    match /groups/{groupId} {
+      allow read: if belongsToPreschool(resource.data.preschoolId);
+      allow create: if isSuperAdmin() || isAdminOf(requestPreschoolId());
+      allow update, delete: if isSuperAdmin() || isAdminOf(resource.data.preschoolId);
+    }
+
+    match /kids/{kidId} {
+      allow read: if isStaffOf(resource.data.preschoolId)
+        || (
+          isParentOf(resource.data.preschoolId)
+          && request.auth.uid in resource.data.parentIds
+        );
+      allow create: if isSuperAdmin() || isAdminOf(requestPreschoolId());
+      allow update, delete: if isSuperAdmin() || isAdminOf(resource.data.preschoolId);
+    }
+
+    match /attendance/{attendanceId} {
+      allow read: if belongsToPreschool(resource.data.preschoolId);
+      allow create: if isStaffOf(requestPreschoolId());
+      allow update, delete: if isStaffOf(resource.data.preschoolId);
+    }
+
+    match /recipes/{recipeId} {
+      allow read: if belongsToPreschool(resource.data.preschoolId);
+      allow create: if isStaffOf(requestPreschoolId());
+      allow update, delete: if isStaffOf(resource.data.preschoolId);
+    }
+
+    match /activities/{activityId} {
+      allow read: if belongsToPreschool(resource.data.preschoolId);
+      allow create: if isStaffOf(requestPreschoolId());
+      allow update, delete: if isStaffOf(resource.data.preschoolId);
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if belongsToPreschool(resource.data.preschoolId);
+      allow create: if isStaffOf(requestPreschoolId());
+      allow update: if isSuperAdmin()
+        || isAdminOf(resource.data.preschoolId)
+        || (
+          belongsToPreschool(resource.data.preschoolId)
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['comments', 'updatedAt'])
+        )
+        || (
+          isStaffOf(resource.data.preschoolId)
+          && resource.data.authorId == request.auth.uid
+        );
+      allow delete: if isSuperAdmin()
+        || isAdminOf(resource.data.preschoolId)
+        || (
+          isStaffOf(resource.data.preschoolId)
+          && resource.data.authorId == request.auth.uid
+        );
+    }
+
+    match /conversations/{conversationId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      allow create: if isSignedIn()
+        && request.auth.uid in request.resource.data.participantIds
+        && belongsToPreschool(requestPreschoolId());
+      allow update: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      allow delete: if isSuperAdmin() || isAdminOf(resource.data.preschoolId);
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
+        allow create: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds
+          && request.resource.data.senderId == request.auth.uid;
+        allow update: if isSignedIn() && resource.data.senderId == request.auth.uid;
+        allow delete: if isSuperAdmin();
+      }
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if isSuperAdmin()
+        || isAdminOf(resource.data.preschoolId)
+        || (
+          isParentOf(resource.data.preschoolId)
+          && resource.data.parentId == request.auth.uid
+        );
+      allow create: if isSuperAdmin() || isAdminOf(requestPreschoolId());
+      allow update, delete: if isSuperAdmin() || isAdminOf(resource.data.preschoolId);
+    }
+
+    match /preschools/{preschoolId}/menus/{menuId} {
+      allow read: if belongsToPreschool(preschoolId);
+      allow write: if isSuperAdmin() || isAdminOf(preschoolId) || isTeacherOf(preschoolId);
+    }
+  }
+}

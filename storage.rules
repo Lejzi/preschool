@@ -1,0 +1,64 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getClaims() {
+      return request.auth.token;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && getClaims().role == 'superadmin';
+    }
+
+    function isStaffOf(preschoolId) {
+      return isSignedIn()
+        && getClaims().preschoolId == preschoolId
+        && (getClaims().role == 'admin' || getClaims().role == 'teacher');
+    }
+
+    function belongsToPreschool(preschoolId) {
+      return isSignedIn() && getClaims().preschoolId == preschoolId;
+    }
+
+    // Preschool assets (logos, etc.)
+    match /preschools/{preschoolId}/branding/{file} {
+      allow read: if belongsToPreschool(preschoolId) || isSuperAdmin();
+      allow write: if isSignedIn()
+        && getClaims().preschoolId == preschoolId
+        && getClaims().role == 'admin';
+    }
+
+    // Kid profile photos
+    match /preschools/{preschoolId}/kids/{kidId}/{file} {
+      allow read: if belongsToPreschool(preschoolId) || isSuperAdmin();
+      allow write: if isStaffOf(preschoolId)
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Recipe photos
+    match /preschools/{preschoolId}/recipes/{recipeId}/{file} {
+      allow read: if belongsToPreschool(preschoolId);
+      allow write: if isStaffOf(preschoolId)
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Announcement attachments
+    match /preschools/{preschoolId}/announcements/{announcementId}/{file} {
+      allow read: if belongsToPreschool(preschoolId);
+      allow write: if isStaffOf(preschoolId)
+        && request.resource.size < 20 * 1024 * 1024;
+    }
+
+    // Message attachments
+    match /preschools/{preschoolId}/messages/{file} {
+      allow read, write: if belongsToPreschool(preschoolId)
+        && request.resource.size < 10 * 1024 * 1024;
+    }
+  }
+}
