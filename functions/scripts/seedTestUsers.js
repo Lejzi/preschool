@@ -39,7 +39,7 @@ if (serviceAccountPath) {
 
 const auth = admin.auth();
 const db = admin.firestore();
-const password = process.env.TEST_USER_PASSWORD || "Test1234!";
+const password = process.env.TEST_USER_PASSWORD;
 const isUsingEmulators =
   Boolean(process.env.FIREBASE_AUTH_EMULATOR_HOST) ||
   Boolean(process.env.FIRESTORE_EMULATOR_HOST);
@@ -175,6 +175,12 @@ async function upsertUserProfile({ uid, email, displayName, role, preschoolId })
 }
 
 async function seed() {
+  if (!password) {
+    throw new Error(
+      "TEST_USER_PASSWORD is required. Choose a strong, temporary password for seeded users.",
+    );
+  }
+
   if (!projectId) {
     throw new Error(
       "Firebase project id was not found. Set FIREBASE_PROJECT or configure .firebaserc.",
@@ -182,7 +188,7 @@ async function seed() {
   }
 
   const preschool = await findPreschool();
-  const credentials = [];
+  const seededUsers = [];
 
   for (const testUser of TEST_USERS) {
     const preschoolId =
@@ -202,10 +208,9 @@ async function seed() {
       preschoolId,
     });
 
-    credentials.push({
+    seededUsers.push({
       role: testUser.role,
       email: testUser.email,
-      password,
     });
   }
 
@@ -213,7 +218,7 @@ async function seed() {
   console.log(`Seeded test users for Firebase project: ${projectId}`);
   console.log(`Preschool for non-superadmin users: ${preschool.name} (${preschool.code})`);
   console.log("");
-  console.table(credentials);
+  console.table(seededUsers);
   console.log("");
   console.log("If a user was already logged in, sign out and sign back in to refresh custom claims.");
 }
