@@ -162,25 +162,37 @@ export function useCreateConversation() {
     mutationFn: async ({
       preschoolId,
       participantIds,
+      type,
       kidId,
       kidName,
+      groupId,
+      groupName,
     }: {
       preschoolId: string;
       participantIds: string[];
-      kidId: string;
-      kidName: string;
+      type: "kid" | "group";
+      kidId?: string;
+      kidName?: string;
+      groupId?: string;
+      groupName?: string;
     }) => {
-      // Check if conversation already exists
+      const conversationField = type === "group" ? "groupId" : "kidId";
+      const conversationValue = type === "group" ? groupId : kidId;
+      if (!conversationValue) {
+        throw new Error("Missing conversation target");
+      }
+
       const q = query(
         collection(db, "conversations"),
         where("preschoolId", "==", preschoolId),
-        where("kidId", "==", kidId)
+        where(conversationField, "==", conversationValue),
       );
       const snap = await getDocs(q);
       
       const existing = snap.docs.find(d => {
         const pIds = d.data().participantIds || [];
-        // simple check if both participants are in this conversation
+        const existingType = d.data().type || "kid";
+        if (existingType !== type) return false;
         return participantIds.every(pid => pIds.includes(pid));
       });
 
@@ -192,8 +204,11 @@ export function useCreateConversation() {
       const payload: Partial<Conversation> = {
         preschoolId,
         participantIds,
-        kidId,
-        kidName,
+        type,
+        kidId: type === "kid" ? kidId || null : null,
+        kidName: type === "kid" ? kidName || null : null,
+        groupId: type === "group" ? groupId || null : null,
+        groupName: type === "group" ? groupName || null : null,
         lastMessage: null,
         createdAt: serverTimestamp() as unknown as import("firebase/firestore").Timestamp,
       };

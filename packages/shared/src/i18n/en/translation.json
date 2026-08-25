@@ -49,6 +49,7 @@
     "haveAccount": "Already have an account?",
     "displayName": "Full Name",
     "continueWithGoogle": "Continue with Google",
+    "loggingIn": "Signing in...",
     "or": "or"
   },
   "nav": {
@@ -134,7 +135,19 @@
     "typeMessage": "Type a message...",
     "send": "Send",
     "noConversations": "No conversations",
-    "regarding": "Regarding: {{kidName}}"
+    "regarding": "Regarding: {{kidName}}",
+    "conversationType": "Conversation type",
+    "childConversation": "Child conversation",
+    "groupConversation": "Group conversation",
+    "groupConversationLabel": "Conversation with the whole group",
+    "selectChild": "Select child",
+    "selectChildPlaceholder": "-- Select from the list --",
+    "selectGroup": "Select group",
+    "selectGroupPlaceholder": "-- Select group --",
+    "childConversationHintStaff": "A conversation will be created with this child's guardians.",
+    "childConversationHintParent": "A conversation will be created with the teachers.",
+    "groupConversationHint": "A conversation will be created with guardians of children in this group and the assigned teachers.",
+    "startConversation": "Start"
   },
   "dashboard": {
     "alerts": {

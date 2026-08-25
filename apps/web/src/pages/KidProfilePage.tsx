@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { clsx } from "clsx";
 import type { EmergencyContact, KidGuardian } from "@przedszkole/shared";
 import { useKid, useDeleteKid, useLinkGuardianToKid, useSaveKid } from "@/hooks/useKids";
 import { useGroups } from "@/hooks/useGroups";
@@ -521,9 +522,17 @@ export function KidProfilePage() {
                   return (
                     <label
                       key={allergy}
-                      className={checked
-                        ? "inline-flex cursor-pointer items-center gap-2 rounded-full border border-brand-300 bg-brand-50 px-3 py-2 text-sm text-brand-700"
-                        : "inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"}
+                      className={clsx(
+                        "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm",
+                        isAdmin ? "cursor-pointer" : "cursor-not-allowed opacity-60",
+                        checked
+                          ? "border-brand-300 bg-brand-50 text-brand-700"
+                          : "border-slate-200 bg-white text-slate-700",
+                        !isAdmin &&
+                          (checked
+                            ? "border-slate-200 bg-slate-100 text-slate-500"
+                            : "border-slate-200 bg-slate-50 text-slate-400"),
+                      )}
                     >
                       <input
                         type="checkbox"

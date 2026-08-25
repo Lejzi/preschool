@@ -7,6 +7,7 @@ import { clsx } from "clsx";
 import { useConversations, useCreateConversation } from "@/hooks/useMessages";
 import { useKids } from "@/hooks/useKids";
 import { useStaff } from "@/hooks/useStaff";
+import { useGroups } from "@/hooks/useGroups";
 import { formatDistanceToNow } from "date-fns";
 import { pl } from "date-fns/locale";
 import { useActivePreschoolContext } from "@/hooks/usePreschool";
@@ -26,6 +27,7 @@ export function MessagesPage() {
   );
 
   const { data: allKids = [] } = useKids(preschoolId || "");
+  const { data: groups = [] } = useGroups(preschoolId || "");
   // Fetch staff just in case parents need to chat with them (MVP: parents chat with assigned teacher, or staff chats with parent)
   const { data: staff = [] } = useStaff(preschoolId || ""); 
   const kids = isStaff
@@ -39,37 +41,68 @@ export function MessagesPage() {
   const { mutate: createConv, isPending: isCreating } = useCreateConversation();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [targetType, setTargetType] = useState<"kid" | "group">("kid");
   const [selectedKidId, setSelectedKidId] = useState("");
+  const [selectedGroupId, setSelectedGroupId] = useState("");
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!preschoolId || !userProfile || !selectedKidId) return;
+    if (!preschoolId || !userProfile) return;
+
+    let participantIds: string[] = [];
+    if (targetType === "group" && isStaff) {
+      const group = groups.find((item) => item.id === selectedGroupId);
+      if (!group) return;
+
+      const groupKids = allKids.filter((kid) => kid.groupId === group.id);
+      participantIds = Array.from(
+        new Set([
+          userProfile.id,
+          ...group.teacherIds,
+          ...groupKids.flatMap((kid) => kid.parentIds || []),
+        ].filter(Boolean)),
+      );
+
+      createConv(
+        {
+          preschoolId,
+          participantIds,
+          type: "group",
+          groupId: group.id,
+          groupName: group.name,
+        },
+        {
+          onSuccess: (newConv) => {
+            setIsModalOpen(false);
+            setSelectedGroupId("");
+            navigate(`/${preschoolCode}/messages/${newConv.id}`);
+          },
+        },
+      );
+      return;
+    }
 
     const kid = kids.find(k => k.id === selectedKidId);
     if (!kid) return;
 
-    // MVP Logic: 
-    // If staff is creating, participants = [staff.id, ...kid.parentIds]
-    // If parent is creating, participants = [parent.id, mappedTeacher.id] -> we'll simplify and just add all admins if no specific teacher for now, or just the group teacher if we had group->teacher mapping.
-    // For now, let's just do: Staff creates chat with parents of the kid. Parent creates chat with all staff.
-    let participantIds: string[] = [];
     if (isStaff) {
       participantIds = [userProfile.id, ...(kid.parentIds || [])];
     } else {
       participantIds = [userProfile.id, ...staff.map(s => s.id)];
     }
 
-    // Ensure uniqueness
     participantIds = Array.from(new Set(participantIds.filter(Boolean)));
 
     createConv({
       preschoolId,
+      participantIds,
+      type: "kid",
       kidId: kid.id,
       kidName: `${kid.firstName} ${kid.lastName}`,
-      participantIds,
     }, {
       onSuccess: (newConv) => {
         setIsModalOpen(false);
+        setSelectedKidId("");
         navigate(`/${preschoolCode}/messages/${newConv.id}`);
       }
     });
@@ -104,6 +137,13 @@ export function MessagesPage() {
             // A simple unread check: if last message wasn't from me and isn't read
             const isUnread = conv.lastMessage && !conv.lastMessage.read && conv.lastMessage.senderId !== userProfile?.id;
 
+            const displayTitle =
+              conv.type === "group" ? conv.groupName || t("messages.groupConversation") : conv.kidName;
+            const displaySubtitle =
+              conv.type === "group"
+                ? t("messages.groupConversationLabel")
+                : t("messages.regarding", { kidName: conv.kidName });
+
             return (
               <Link
                 key={conv.id}
@@ -114,17 +154,22 @@ export function MessagesPage() {
                 )}
               >
                 <div className="w-11 h-11 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold text-sm shrink-0 uppercase">
-                  {conv.kidName.split(" ").map((n) => n[0]).join("").substring(0, 2)}
+                  {(displayTitle || "")
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .substring(0, 2)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between">
                     <p className={clsx("text-sm truncate", isUnread ? "font-bold text-slate-900" : "font-semibold text-slate-800")}>
-                      {conv.kidName}
+                      {displayTitle}
                     </p>
                     <span className={clsx("text-xs shrink-0 ml-2", isUnread ? "text-brand-600 font-medium" : "text-slate-400")}>
                       {timeAgo}
                     </span>
                   </div>
+                  <p className="text-[11px] text-slate-400 truncate">{displaySubtitle}</p>
                   <p className="text-xs text-slate-500 truncate font-medium">
                     {conv.lastMessage?.senderId === userProfile?.id ? "Ty: " : ""}
                     {conv.lastMessage?.text || "Brak wiadomości. Napisz jako pierwszy!"}
@@ -151,28 +196,70 @@ export function MessagesPage() {
             </div>
             
             <form onSubmit={handleCreate} className="space-y-4">
+              {isStaff && (
+                <div>
+                  <label className="label">{t("messages.conversationType")}</label>
+                  <Select
+                    value={targetType}
+                    onChange={(value) => {
+                      setTargetType(value as "kid" | "group");
+                      setSelectedKidId("");
+                      setSelectedGroupId("");
+                    }}
+                    options={[
+                      { value: "kid", label: t("messages.childConversation") },
+                      { value: "group", label: t("messages.groupConversation") },
+                    ]}
+                  />
+                </div>
+              )}
+
+              {targetType === "group" && isStaff ? (
+                <div>
+                  <label className="label">{t("messages.selectGroup")}</label>
+                  <Select
+                    value={selectedGroupId}
+                    onChange={setSelectedGroupId}
+                    placeholder={t("messages.selectGroupPlaceholder")}
+                    options={groups.map((group) => ({
+                      value: group.id,
+                      label: group.name,
+                    }))}
+                  />
+                  <p className="text-xs text-slate-400 mt-2">
+                    {t("messages.groupConversationHint")}
+                  </p>
+                </div>
+              ) : (
               <div>
-                <label className="label">Wybierz dziecko</label>
+                <label className="label">{t("messages.selectChild")}</label>
                 <Select
                   value={selectedKidId} 
                   onChange={setSelectedKidId}
-                  placeholder="-- Wybierz z listy --"
+                  placeholder={t("messages.selectChildPlaceholder")}
                   options={kids.map((k) => ({
                     value: k.id,
                     label: `${k.firstName} ${k.lastName}`,
                   }))}
                 />
                 <p className="text-xs text-slate-400 mt-2">
-                  Zostanie utworzona konwersacja z {isStaff ? "rodzicami tego dziecka" : "nauczycielami"}.
+                  {isStaff
+                    ? t("messages.childConversationHintStaff")
+                    : t("messages.childConversationHintParent")}
                 </p>
               </div>
+              )}
 
               <div className="pt-2 flex gap-3">
                 <button type="button" disabled={isCreating} className="btn-ghost flex-1" onClick={() => setIsModalOpen(false)}>
                   {t("common.cancel")}
                 </button>
-                <button type="submit" disabled={isCreating || !selectedKidId} className="btn-primary flex-1">
-                  {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Rozpocznij"}
+                <button
+                  type="submit"
+                  disabled={isCreating || (targetType === "group" && isStaff ? !selectedGroupId : !selectedKidId)}
+                  className="btn-primary flex-1"
+                >
+                  {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : t("messages.startConversation")}
                 </button>
               </div>
             </form>

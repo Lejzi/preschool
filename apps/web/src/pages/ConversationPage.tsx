@@ -72,8 +72,15 @@ export function ConversationPage() {
   // Display details
   // If we had more user details mapped we could show full names, but for MVP we use kidName 
   // and the notion that the conversation is about this kid.
-  const displayTitle = conversation.kidName;
+  const displayTitle =
+    conversation.type === "group"
+      ? conversation.groupName || t("messages.groupConversation")
+      : conversation.kidName || t("messages.childConversation");
   const displayInitials = displayTitle.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
+  const subtitle =
+    conversation.type === "group"
+      ? t("messages.groupConversationLabel")
+      : t("messages.regarding", { kidName: displayTitle });
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
@@ -88,7 +95,7 @@ export function ConversationPage() {
         <div>
           <p className="font-semibold text-slate-900">{displayTitle}</p>
           <p className="text-xs text-slate-400">
-            {t("messages.regarding", { kidName: displayTitle })}
+            {subtitle}
           </p>
         </div>
       </div>

@@ -38,9 +38,42 @@ interface AuthState {
   initialize: () => () => void;
 }
 
+async function loadAuthState(firebaseUser: FirebaseUser) {
+  const tokenResult = await firebaseUser.getIdTokenResult(true);
+  const claims = tokenResult.claims as {
+    role?: UserRole;
+    preschoolId?: string;
+  };
+
+  const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+  const userProfile = userDoc.exists()
+    ? ({ id: firebaseUser.uid, ...userDoc.data() } as User)
+    : null;
+
+  const role = claims.role || userProfile?.role || null;
+  const preschoolId = claims.preschoolId || userProfile?.preschoolId || null;
+
+  let preschoolCode: string | null = null;
+  if (preschoolId) {
+    const preschoolDoc = await getDoc(doc(db, "preschools", preschoolId));
+    if (preschoolDoc.exists()) {
+      preschoolCode = preschoolDoc.data().code;
+    }
+  }
+
+  return {
+    user: firebaseUser,
+    userProfile,
+    role,
+    preschoolId,
+    preschoolCode,
+    initialized: true,
+  };
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       userProfile: null,
       preschoolId: null,
@@ -52,40 +85,7 @@ export const useAuthStore = create<AuthState>()(
       initialize: () => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
           if (firebaseUser) {
-            const tokenResult = await firebaseUser.getIdTokenResult(true);
-            const claims = tokenResult.claims as {
-              role?: UserRole;
-              preschoolId?: string;
-            };
-
-            const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-            const userProfile = userDoc.exists()
-              ? ({ id: firebaseUser.uid, ...userDoc.data() } as User)
-              : null;
-
-            // Prefer custom claims, fall back to Firestore profile
-            const role = claims.role || userProfile?.role || null;
-            const preschoolId =
-              claims.preschoolId || userProfile?.preschoolId || null;
-
-            let preschoolCode: string | null = null;
-            if (preschoolId) {
-              const preschoolDoc = await getDoc(
-                doc(db, "preschools", preschoolId),
-              );
-              if (preschoolDoc.exists()) {
-                preschoolCode = preschoolDoc.data().code;
-              }
-            }
-
-            set({
-              user: firebaseUser,
-              userProfile,
-              role,
-              preschoolId,
-              preschoolCode,
-              initialized: true,
-            });
+            set(await loadAuthState(firebaseUser));
           } else {
             set({
               user: null,
@@ -101,16 +101,20 @@ export const useAuthStore = create<AuthState>()(
       },
 
       login: async (email, password) => {
-        set({ loading: true });
+        set({ loading: true, initialized: false });
         try {
-          await signInWithEmailAndPassword(auth, email, password);
+          const cred = await signInWithEmailAndPassword(auth, email, password);
+          set(await loadAuthState(cred.user));
         } finally {
-          set({ loading: false });
+          set((state) => ({
+            loading: false,
+            initialized: state.user ? state.initialized : true,
+          }));
         }
       },
 
       loginWithGoogle: async () => {
-        set({ loading: true });
+        set({ loading: true, initialized: false });
         try {
           const provider = new GoogleAuthProvider();
           provider.setCustomParameters({ prompt: "select_account" });
@@ -146,8 +150,12 @@ export const useAuthStore = create<AuthState>()(
               { merge: true },
             );
           }
+          set(await loadAuthState(cred.user));
         } finally {
-          set({ loading: false });
+          set((state) => ({
+            loading: false,
+            initialized: state.user ? state.initialized : true,
+          }));
         }
       },
 

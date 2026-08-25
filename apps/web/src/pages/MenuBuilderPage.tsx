@@ -433,7 +433,7 @@ export function MenuBuilderPage() {
                                 )}
                               <button
                                 onClick={(e) => openSpecialDietModal(day, meal, e)}
-                                className="btn-secondary inline-flex w-fit cursor-pointer px-2.5 py-1 text-xs"
+                                className="inline-flex w-fit cursor-pointer items-center rounded-md px-0 py-0 text-xs font-medium text-brand-600 transition-colors hover:text-brand-700 hover:underline"
                                 title={t("menu.specialDiets")}
                               >
                                 {t("menu.specialDiets")}

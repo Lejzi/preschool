@@ -1,10 +1,11 @@
-import { Outlet, Navigate } from "react-router-dom";
+import { Outlet, Navigate, Link } from "react-router-dom";
 import { useAuthStore } from "@/stores/authStore";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 export function AuthLayout() {
   const { user, initialized } = useAuthStore();
 
-  if (!initialized) return null;
+  if (!initialized) return <LoadingSpinner fullScreen />;
 
   if (user) {
     return <Navigate to="/" replace />;
@@ -22,9 +23,7 @@ export function AuthLayout() {
       <div className="relative w-full max-w-md">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 backdrop-blur-sm rounded-2xl mb-4 text-4xl">
-            🏫
-          </div>
+          <Link to="/" className="inline-flex items-center justify-center w-16 h-16 bg-white/10 backdrop-blur-sm rounded-2xl mb-4 text-3xl font-black text-white" aria-label="Wróć na stronę główną">P</Link>
           <h1 className="text-3xl font-bold text-white">Przedszkole App</h1>
           <p className="text-brand-200 mt-1 text-sm">
             System zarządzania przedszkolem

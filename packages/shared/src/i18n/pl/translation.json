@@ -49,6 +49,7 @@
     "haveAccount": "Masz już konto?",
     "displayName": "Imię i nazwisko",
     "continueWithGoogle": "Kontynuuj z Google",
+    "loggingIn": "Logowanie...",
     "or": "lub"
   },
   "nav": {
@@ -134,7 +135,19 @@
     "typeMessage": "Napisz wiadomość...",
     "send": "Wyślij",
     "noConversations": "Brak rozmów",
-    "regarding": "Dotyczy: {{kidName}}"
+    "regarding": "Dotyczy: {{kidName}}",
+    "conversationType": "Typ rozmowy",
+    "childConversation": "Rozmowa o dziecku",
+    "groupConversation": "Rozmowa grupowa",
+    "groupConversationLabel": "Rozmowa z całą grupą",
+    "selectChild": "Wybierz dziecko",
+    "selectChildPlaceholder": "-- Wybierz z listy --",
+    "selectGroup": "Wybierz grupę",
+    "selectGroupPlaceholder": "-- Wybierz grupę --",
+    "childConversationHintStaff": "Zostanie utworzona konwersacja z rodzicami tego dziecka.",
+    "childConversationHintParent": "Zostanie utworzona konwersacja z nauczycielami.",
+    "groupConversationHint": "Zostanie utworzona rozmowa z rodzicami dzieci z tej grupy oraz przypisanymi nauczycielami.",
+    "startConversation": "Rozpocznij"
   },
   "dashboard": {
     "alerts": {

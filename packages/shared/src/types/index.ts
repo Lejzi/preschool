@@ -247,12 +247,17 @@ export interface AnnouncementComment {
 }
 
 // ─── Messaging ───────────────────────────────────────
+export type ConversationType = "kid" | "group";
+
 export interface Conversation {
   id: string;
   preschoolId: string;
   participantIds: string[]; // [teacherUid, parentUid]
-  kidId: string;
-  kidName: string;
+  type?: ConversationType;
+  kidId?: string | null;
+  kidName?: string | null;
+  groupId?: string | null;
+  groupName?: string | null;
   lastMessage: {
     text: string;
     senderId: string;

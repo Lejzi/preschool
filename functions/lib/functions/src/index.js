@@ -42,6 +42,7 @@ admin.initializeApp();
 // Export all function groups
 __exportStar(require("./auth/setUserRole"), exports);
 __exportStar(require("./auth/inviteUser"), exports);
+__exportStar(require("./auth/manageStaffMember"), exports);
 __exportStar(require("./kids/linkParentToKid"), exports);
 __exportStar(require("./preschools/createPreschool"), exports);
 __exportStar(require("./billing/generateInvoice"), exports);

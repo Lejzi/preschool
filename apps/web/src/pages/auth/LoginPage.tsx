@@ -20,6 +20,7 @@ export function LoginPage() {
   const { login, loginWithGoogle, loading } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [authMethod, setAuthMethod] = useState<"email" | "google" | null>(null);
 
   const {
     register,
@@ -31,23 +32,29 @@ export function LoginPage() {
 
   const onSubmit = async (data: FormData) => {
     setError(null);
+    setAuthMethod("email");
     try {
       await login(data.email, data.password);
-      navigate("/");
+      navigate("/", { replace: true });
     } catch (e: any) {
       setError(t("auth.loginError"));
+      setAuthMethod(null);
     }
   };
 
   const handleGoogleLogin = async () => {
     setError(null);
+    setAuthMethod("google");
     try {
       await loginWithGoogle();
-      navigate("/");
+      navigate("/", { replace: true });
     } catch {
       setError(t("auth.googleLoginError"));
+      setAuthMethod(null);
     }
   };
+
+  const isSubmitting = loading || authMethod !== null;
 
   return (
     <div>
@@ -65,6 +72,12 @@ export function LoginPage() {
       </p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        {isSubmitting && (
+          <div className="rounded-lg border border-brand-100 bg-brand-50 px-4 py-3 text-sm font-medium text-brand-700">
+            {t("auth.loggingIn")}
+          </div>
+        )}
+
         {error && (
           <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-red-700 text-sm">
             {error}
@@ -77,6 +90,7 @@ export function LoginPage() {
             type="email"
             className="input"
             placeholder="jan@przyklad.pl"
+            disabled={isSubmitting}
             {...register("email")}
           />
           {errors.email && (
@@ -90,10 +104,12 @@ export function LoginPage() {
             <input
               type={showPassword ? "text" : "password"}
               className="input pr-10"
+              disabled={isSubmitting}
               {...register("password")}
             />
             <button
               type="button"
+              disabled={isSubmitting}
               onClick={() => setShowPassword((v) => !v)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
             >
@@ -118,16 +134,16 @@ export function LoginPage() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={isSubmitting}
           className="btn-primary w-full"
           id="login-submit"
         >
-          {loading ? (
+          {isSubmitting && authMethod === "email" ? (
             <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
           ) : (
             <LogIn size={16} />
           )}
-          {t("auth.login")}
+          {isSubmitting && authMethod === "email" ? t("auth.loggingIn") : t("auth.login")}
         </button>
 
         <div className="flex items-center gap-3 py-1">
@@ -140,10 +156,13 @@ export function LoginPage() {
 
         <button
           type="button"
-          disabled={loading}
+          disabled={isSubmitting}
           className="btn-secondary w-full"
           onClick={handleGoogleLogin}
         >
+          {isSubmitting && authMethod === "google" ? (
+            <span className="animate-spin rounded-full h-4 w-4 border-2 border-brand-600 border-t-transparent" />
+          ) : (
           <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
             <path
               fill="#EA4335"
@@ -162,7 +181,10 @@ export function LoginPage() {
               d="M20.6 11.2c0-.6-.1-1-.2-1.4H12v3.9h5.5c-.3 1.4-1.2 2.6-2.1 3.4l3 2.4c1.8-1.7 2.8-4.1 2.8-8.3Z"
             />
           </svg>
-          {t("auth.continueWithGoogle")}
+          )}
+          {isSubmitting && authMethod === "google"
+            ? t("auth.loggingIn")
+            : t("auth.continueWithGoogle")}
         </button>
       </form>
     </div>

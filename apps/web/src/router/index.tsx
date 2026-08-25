@@ -26,6 +26,7 @@ import { BillingPage } from "@/pages/BillingPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { SuperAdminPage } from "@/pages/superadmin/SuperAdminPage";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { LandingPage } from "@/pages/LandingPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, initialized } = useAuthStore();
@@ -43,12 +44,12 @@ function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
 }
 
 export function Router() {
-  const { initialize } = useAuthStore();
+  const initialize = useAuthStore((state) => state.initialize);
 
   useEffect(() => {
     const unsub = initialize();
     return unsub;
-  }, []);
+  }, [initialize]);
 
   return (
     <BrowserRouter>
@@ -133,7 +134,7 @@ function NoPreshoolPage() {
 function RootRedirect() {
   const { user, role, preschoolCode, initialized } = useAuthStore();
   if (!initialized) return <LoadingSpinner fullScreen />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <LandingPage />;
   if (role === "superadmin") return <Navigate to="/superadmin" replace />;
   if (preschoolCode) return <Navigate to={`/${preschoolCode}`} replace />;
   return <NoPreshoolPage />;
