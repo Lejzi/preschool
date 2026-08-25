@@ -15,7 +15,7 @@ function RootLayoutNav() {
   useEffect(() => {
     const unsub = initialize();
     return unsub;
-  }, []);
+  }, [initialize]);
 
   useEffect(() => {
     if (!initialized) return;
@@ -31,7 +31,7 @@ function RootLayoutNav() {
         router.replace(`/(tabs)/dashboard`);
       }
     }
-  }, [user, initialized, role, preschoolCode]);
+  }, [user, initialized, role, preschoolCode, router, segments]);
 
   if (!initialized) {
     return (
@@ -53,6 +53,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="superadmin" />
+      <Stack.Screen name="announcements" />
     </Stack>
   );
 }

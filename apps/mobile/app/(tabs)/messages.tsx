@@ -1,165 +1,100 @@
 import React, { useState } from "react";
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { Send } from "lucide-react-native";
+import { useAuthStore } from "@/stores/authStore";
+import { useConversations, useMessages, useSendMessage } from "@/hooks/usePreschoolData";
 
-const CONVERSATIONS = [
-  {
-    id: "c1",
-    kidName: "Anna Kowalska",
-    teacher: "Nauczycielka Magdalena",
-    last: "Czy mogłaby Pani przekazać...",
-    time: "14:32",
-    unread: 2,
-  },
-  {
-    id: "c2",
-    kidName: "Marek Nowak",
-    teacher: "Nauczyciel Paweł",
-    last: "Dziękuję za informację!",
-    time: "Wczoraj",
-    unread: 0,
-  },
-];
-
-const MESSAGES = [
-  {
-    id: "m1",
-    me: false,
-    text: "Dzień dobry! Anna świetnie radziła sobie dziś z zajęciami 🎨",
-    time: "10:03",
-  },
-  {
-    id: "m2",
-    me: true,
-    text: "Bardzo dziękuję! Cieszymy się. Czy jutro będą szczególne zajęcia?",
-    time: "10:15",
-  },
-  {
-    id: "m3",
-    me: false,
-    text: "Jutro mamy spacer i czytanie bajek. Proszę o fartuszek roboczy!",
-    time: "10:22",
-  },
-];
+function conversationTitle(conversation: { kidName?: string | null; groupName?: string | null }) {
+  return conversation.kidName || conversation.groupName || "Rozmowa";
+}
 
 export default function MessagesScreen() {
-  const [selected, setSelected] = useState<string | null>(null);
+  const { user, userProfile, preschoolId } = useAuthStore();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [text, setText] = useState("");
-  const [msgs, setMsgs] = useState(MESSAGES);
+  const { data: conversations = [], isLoading, isRefetching, refetch } = useConversations(preschoolId ?? "", user?.uid ?? "");
+  const selected = conversations.find((item) => item.id === selectedId) ?? null;
+  const { data: messages = [], isLoading: messagesLoading, isRefetching: messagesRefreshing, refetch: refetchMessages } = useMessages(selectedId ?? "");
+  const sendMessage = useSendMessage();
+
+  const send = async () => {
+    const trimmed = text.trim();
+    if (!trimmed || !selected || !user) return;
+    try {
+      await sendMessage.mutateAsync({
+        conversation: selected,
+        senderId: user.uid,
+        senderName: userProfile?.displayName || user.email || "Użytkownik",
+        text: trimmed,
+      });
+      setText("");
+    } catch {
+      Alert.alert("Nie wysłano", "Sprawdź połączenie i spróbuj ponownie.");
+    }
+  };
 
   if (selected) {
-    const conv = CONVERSATIONS.find((c) => c.id === selected)!;
-    const now = new Date();
-    const send = () => {
-      if (!text.trim()) return;
-      setMsgs((prev) => [
-        ...prev,
-        {
-          id: `m${Date.now()}`,
-          me: true,
-          text: text.trim(),
-          time: `${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`,
-        },
-      ]);
-      setText("");
-    };
-
     return (
-      <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: "#f8fafc" }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        {/* Header */}
+      <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={88}>
         <View style={styles.chatHeader}>
-          <TouchableOpacity
-            onPress={() => setSelected(null)}
-            style={styles.backBtn}
-          >
-            <Text style={styles.backText}>‹ Wróć</Text>
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.chatHeaderName}>{conv.kidName}</Text>
-            <Text style={styles.chatHeaderSub}>{conv.teacher}</Text>
-          </View>
+          <TouchableOpacity onPress={() => setSelectedId(null)} style={styles.backBtn}><Text style={styles.backText}>‹ Wróć</Text></TouchableOpacity>
+          <View style={styles.headerText}><Text style={styles.chatHeaderName}>{conversationTitle(selected)}</Text><Text style={styles.chatHeaderSub}>{selected.type === "group" ? "Rozmowa grupowa" : "Rozmowa o dziecku"}</Text></View>
         </View>
 
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: 14, gap: 10 }}
-        >
-          {msgs.map((m) => (
-            <View
-              key={m.id}
-              style={[
-                styles.bubble,
-                m.me ? styles.bubbleMe : styles.bubbleThem,
-              ]}
-            >
-              <Text style={[styles.bubbleText, m.me && { color: "#fff" }]}>
-                {m.text}
-              </Text>
-              <Text style={[styles.bubbleTime, m.me && { color: "#a5b4fc" }]}>
-                {m.time}
-              </Text>
-            </View>
-          ))}
-        </ScrollView>
+        {messagesLoading ? <View style={styles.center}><ActivityIndicator color="#4f46e5" /></View> : (
+          <ScrollView
+            style={styles.messages}
+            contentContainerStyle={styles.messagesContent}
+            refreshControl={<RefreshControl refreshing={messagesRefreshing} onRefresh={refetchMessages} tintColor="#4f46e5" />}
+          >
+            {messages.length === 0 ? <Text style={styles.noMessages}>To początek rozmowy. Napisz pierwszą wiadomość.</Text> : messages.map((message) => {
+              const mine = message.senderId === user?.uid;
+              return (
+                <View key={message.id} style={[styles.bubble, mine ? styles.bubbleMe : styles.bubbleThem]}>
+                  {!mine && <Text style={styles.senderName}>{message.senderName}</Text>}
+                  <Text style={[styles.bubbleText, mine && styles.bubbleTextMe]}>{message.text}</Text>
+                </View>
+              );
+            })}
+          </ScrollView>
+        )}
 
         <View style={styles.inputBar}>
-          <TextInput
-            style={styles.msgInput}
-            placeholder="Napisz wiadomość..."
-            value={text}
-            onChangeText={setText}
-            multiline
-          />
-          <TouchableOpacity style={styles.sendBtn} onPress={send}>
-            <Text style={styles.sendBtnText}>➤</Text>
+          <TextInput style={styles.msgInput} placeholder="Napisz wiadomość..." placeholderTextColor="#94a3b8" value={text} onChangeText={setText} multiline maxLength={2000} />
+          <TouchableOpacity style={[styles.sendBtn, (!text.trim() || sendMessage.isPending) && styles.sendDisabled]} onPress={send} disabled={!text.trim() || sendMessage.isPending} accessibilityLabel="Wyślij wiadomość">
+            {sendMessage.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Send color="#fff" size={18} />}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     );
   }
 
+  if (isLoading) return <View style={styles.center}><ActivityIndicator size="large" color="#4f46e5" /></View>;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {CONVERSATIONS.map((conv) => (
-        <TouchableOpacity
-          key={conv.id}
-          style={styles.convRow}
-          onPress={() => setSelected(conv.id)}
-        >
-          <View style={styles.convAvatar}>
-            <Text style={styles.convAvatarText}>
-              {conv.kidName
-                .split(" ")
-                .map((n) => n[0])
-                .join("")}
-            </Text>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.listContent} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#4f46e5" />}>
+      {conversations.length === 0 ? (
+        <View style={styles.empty}><Text style={styles.emptyTitle}>Brak wiadomości</Text><Text style={styles.emptyText}>Rozmowy utworzone przez placówkę pojawią się tutaj.</Text></View>
+      ) : conversations.map((conversation) => (
+        <TouchableOpacity key={conversation.id} style={styles.convRow} onPress={() => setSelectedId(conversation.id)}>
+          <View style={styles.convAvatar}><Text style={styles.convAvatarText}>{conversationTitle(conversation).slice(0, 2).toUpperCase()}</Text></View>
+          <View style={styles.convBody}>
+            <Text style={styles.convName}>{conversationTitle(conversation)}</Text>
+            <Text style={styles.convLast} numberOfLines={1}>{conversation.lastMessage?.text || "Brak wiadomości"}</Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.convName}>{conv.kidName}</Text>
-            <Text style={styles.convTeacher}>{conv.teacher}</Text>
-            <Text style={styles.convLast} numberOfLines={1}>
-              {conv.last}
-            </Text>
-          </View>
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={styles.convTime}>{conv.time}</Text>
-            {conv.unread > 0 && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadText}>{conv.unread}</Text>
-              </View>
-            )}
-          </View>
+          {conversation.lastMessage && !conversation.lastMessage.read && conversation.lastMessage.senderId !== user?.uid ? <View style={styles.unreadDot} /> : null}
         </TouchableOpacity>
       ))}
     </ScrollView>
@@ -167,93 +102,36 @@ export default function MessagesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
-  content: { padding: 12, gap: 8 },
-  convRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  convAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#e0e7ff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  convAvatarText: { fontWeight: "700", color: "#4f46e5", fontSize: 13 },
+  screen: { flex: 1, backgroundColor: "#f8fafc" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#f8fafc" },
+  listContent: { padding: 12, gap: 8, flexGrow: 1 },
+  convRow: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#e2e8f0" },
+  convAvatar: { width: 44, height: 44, borderRadius: 15, backgroundColor: "#eef2ff", alignItems: "center", justifyContent: "center" },
+  convAvatarText: { fontWeight: "800", color: "#4f46e5", fontSize: 12 },
+  convBody: { flex: 1 },
   convName: { fontWeight: "700", fontSize: 14, color: "#0f172a" },
-  convTeacher: { fontSize: 12, color: "#64748b" },
-  convLast: { fontSize: 12, color: "#94a3b8", marginTop: 2 },
-  convTime: { fontSize: 11, color: "#94a3b8" },
-  unreadBadge: {
-    backgroundColor: "#4f46e5",
-    borderRadius: 10,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    marginTop: 4,
-  },
-  unreadText: { color: "#fff", fontSize: 11, fontWeight: "700" },
-  chatHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    backgroundColor: "#fff",
-    padding: 14,
-    borderBottomWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  backBtn: { paddingRight: 4 },
-  backText: { color: "#4f46e5", fontSize: 18, fontWeight: "600" },
+  convLast: { fontSize: 12, color: "#94a3b8", marginTop: 4 },
+  unreadDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: "#4f46e5" },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
+  emptyTitle: { fontSize: 19, fontWeight: "700", color: "#0f172a" },
+  emptyText: { marginTop: 6, textAlign: "center", color: "#64748b", fontSize: 14 },
+  chatHeader: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff", padding: 14, borderBottomWidth: 1, borderColor: "#e2e8f0" },
+  backBtn: { paddingVertical: 6, paddingRight: 2 },
+  backText: { color: "#4f46e5", fontSize: 17, fontWeight: "600" },
+  headerText: { flex: 1 },
   chatHeaderName: { fontWeight: "700", fontSize: 15, color: "#0f172a" },
-  chatHeaderSub: { fontSize: 12, color: "#94a3b8" },
-  bubble: { maxWidth: "78%", borderRadius: 16, padding: 12 },
-  bubbleMe: {
-    backgroundColor: "#4f46e5",
-    alignSelf: "flex-end",
-    borderBottomRightRadius: 4,
-  },
-  bubbleThem: {
-    backgroundColor: "#fff",
-    alignSelf: "flex-start",
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
+  chatHeaderSub: { fontSize: 12, color: "#94a3b8", marginTop: 1 },
+  messages: { flex: 1 },
+  messagesContent: { padding: 14, gap: 10, flexGrow: 1, justifyContent: "flex-end" },
+  noMessages: { textAlign: "center", color: "#94a3b8", fontSize: 13, marginVertical: 24 },
+  bubble: { maxWidth: "82%", borderRadius: 16, paddingHorizontal: 13, paddingVertical: 10 },
+  bubbleMe: { backgroundColor: "#4f46e5", alignSelf: "flex-end", borderBottomRightRadius: 4 },
+  bubbleThem: { backgroundColor: "#fff", alignSelf: "flex-start", borderBottomLeftRadius: 4, borderWidth: 1, borderColor: "#e2e8f0" },
+  senderName: { fontSize: 11, fontWeight: "700", color: "#4f46e5", marginBottom: 3 },
   bubbleText: { fontSize: 14, color: "#0f172a", lineHeight: 20 },
-  bubbleTime: { fontSize: 11, color: "#94a3b8", marginTop: 4 },
-  inputBar: {
-    flexDirection: "row",
-    gap: 10,
-    padding: 12,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderColor: "#e2e8f0",
-    alignItems: "flex-end",
-  },
-  msgInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 15,
-    maxHeight: 100,
-  },
-  sendBtn: {
-    width: 44,
-    height: 44,
-    backgroundColor: "#4f46e5",
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sendBtnText: { color: "#fff", fontSize: 18 },
+  bubbleTextMe: { color: "#fff" },
+  inputBar: { flexDirection: "row", gap: 10, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderColor: "#e2e8f0", alignItems: "flex-end" },
+  msgInput: { flex: 1, borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, maxHeight: 110, color: "#0f172a" },
+  sendBtn: { width: 46, height: 46, backgroundColor: "#4f46e5", borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  sendDisabled: { opacity: 0.5 },
 });

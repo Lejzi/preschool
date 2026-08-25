@@ -71,6 +71,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <CreditCard color={color} size={size} />
           ),
+          href: role === "admin" || role === "parent" ? undefined : null,
         }}
       />
     </Tabs>

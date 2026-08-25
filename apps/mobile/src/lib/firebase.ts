@@ -1,5 +1,7 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth, initializeAuth, inMemoryPersistence } from "firebase/auth";
+import { getAuth, initializeAuth, type Persistence } from "firebase/auth";
+import * as FirebaseAuth from "@firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -20,15 +22,20 @@ const firebaseConfig = {
 };
 
 // Prevent duplicate initialization in fast-refresh
-const app =
-  getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const isNewApp = getApps().length === 0;
+const app = isNewApp ? initializeApp(firebaseConfig) : getApps()[0];
+
+// Metro resolves @firebase/auth through its React Native export, which includes
+// this persistence helper even though the package's default TypeScript surface
+// omits it.
+const getReactNativePersistence = (FirebaseAuth as unknown as {
+  getReactNativePersistence: (storage: typeof AsyncStorage) => Persistence;
+}).getReactNativePersistence;
 
 export const auth =
-  getApps().length === 1
+  isNewApp
     ? initializeAuth(app, {
-        // This Firebase SDK version does not expose the React Native
-        // persistence helper, so keep auth usable with in-memory storage.
-        persistence: inMemoryPersistence,
+        persistence: getReactNativePersistence(AsyncStorage),
       })
     : getAuth(app);
 

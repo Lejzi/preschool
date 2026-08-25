@@ -5,16 +5,32 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  RefreshControl,
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@/stores/authStore";
 import { useRouter } from "expo-router";
+import { format } from "date-fns";
+import { useAnnouncements, useAttendanceDay } from "@/hooks/usePreschoolData";
 
 export default function DashboardScreen() {
   const { t } = useTranslation();
-  const { userProfile, role, preschoolCode, logout } = useAuthStore();
+  const { userProfile, role, preschoolId, logout } = useAuthStore();
   const router = useRouter();
   const firstName = userProfile?.displayName?.split(" ")[0] ?? "";
+  const dateStr = format(new Date(), "yyyy-MM-dd");
+  const { data: attendanceDay, refetch: refetchAttendance, isRefetching: attendanceRefreshing } = useAttendanceDay(preschoolId ?? "", dateStr);
+  const { data: announcements = [], refetch: refetchAnnouncements, isRefetching: announcementsRefreshing } = useAnnouncements(preschoolId ?? "");
+  const presentCount = Object.values(attendanceDay?.entries ?? {}).filter(
+    (entry) => entry.status === "present" || entry.status === "late",
+  ).length;
+  const absentCount = Object.values(attendanceDay?.entries ?? {}).filter(
+    (entry) => entry.status === "absent" || entry.status === "excused",
+  ).length;
+  const isRefreshing = attendanceRefreshing || announcementsRefreshing;
+  const refresh = () => {
+    void Promise.all([refetchAttendance(), refetchAnnouncements()]);
+  };
 
   const today = new Date().toLocaleDateString("pl-PL", {
     weekday: "long",
@@ -81,7 +97,11 @@ export default function DashboardScreen() {
     role === "admin" || role === "teacher" ? staffCards : parentCards;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor="#4f46e5" />}
+    >
       {/* Welcome */}
       <View style={styles.welcomeCard}>
         <Text style={styles.welcomeGreeting}>
@@ -96,21 +116,21 @@ export default function DashboardScreen() {
       {(role === "admin" || role === "teacher") && (
         <View style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: "#dcfce7" }]}>
-            <Text style={[styles.statNum, { color: "#16a34a" }]}>18</Text>
+            <Text style={[styles.statNum, { color: "#16a34a" }]}>{presentCount}</Text>
             <Text style={[styles.statLabel, { color: "#16a34a" }]}>
               Obecnych
             </Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: "#fee2e2" }]}>
-            <Text style={[styles.statNum, { color: "#dc2626" }]}>4</Text>
+            <Text style={[styles.statNum, { color: "#dc2626" }]}>{absentCount}</Text>
             <Text style={[styles.statLabel, { color: "#dc2626" }]}>
               Nieobecnych
             </Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: "#dbeafe" }]}>
-            <Text style={[styles.statNum, { color: "#2563eb" }]}>3</Text>
+            <Text style={[styles.statNum, { color: "#2563eb" }]}>{announcements.length}</Text>
             <Text style={[styles.statLabel, { color: "#2563eb" }]}>
-              Wiadomości
+              Ogłoszenia
             </Text>
           </View>
         </View>
